@@ -5,9 +5,8 @@ import scala.io._
 import akka.actor._ 
 
 case class Close
+case class Open
 
-
-object Demultiplex extends App { 
 
   val barcodesFile = "/home/strozzif/GBS/Barcode-GBS.txt"
   val barcodesSamples = processBarcodes(barcodesFile)
@@ -33,7 +32,7 @@ object Demultiplex extends App {
   }
 
   def openWriters(barcodes: Map[String,String]) : Map[String,ActorRef] = {
-    var writers = Map[String,Writer]()
+    var writers = Map[String,ActorRef]()
     barcodes.foreach {elem =>
       val w = system.actorOf(Props(new Writer))
       w ! elem._2+".fastq.gz"
@@ -53,13 +52,13 @@ object Demultiplex extends App {
     barcodes 
   }
 
-  def closeWriters(writers: Map[String,Writer]) : Unit = {
+  def closeWriters(writers: Map[String,ActorRef]) : Unit = {
     writers.foreach {elem =>
       elem._2 ! Close
     }
   }
 
-  def processFastQ(file: String, cutSite: String, barcodes: Set[String], writers: Map[String,Writer]) = { 
+  def processFastQ(file: String, cutSite: String, barcodes: Set[String], writers: Map[String,ActorRef]) = { 
     var total = 0
     var undetermined = 0
     val fastq = new BufferedSource(new GZIPInputStream(new BufferedInputStream(new FileInputStream(file),1000000)),1000000)
@@ -107,4 +106,3 @@ object Demultiplex extends App {
       case data: Array[Byte] => this.write(data)
     }
   }
-}
