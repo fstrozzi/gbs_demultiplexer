@@ -3,33 +3,40 @@ import java.util.zip._
 import java.io._
 import scala.io._
 import akka.actor._ 
+import com.typesafe.config.ConfigFactory
+
+val customConf = ConfigFactory.parseString("""
+  akka.actor.default-dispatcher.fork-join-executor {
+       parallelism-max = """+args(2).toString+"""
+      } 
+  """)
+
 
 case class Close
 case class Open
 
+val barcodesFile = "/home/strozzif/GBS/Barcode-GBS.txt"
+val barcodesSamples = processBarcodes(barcodesFile)
+val barcodes = barcodesSamples.keys.toSet
+val cutSite = args(1)
+val file = args(0) 
+var total = 0
+var undetermined = 0
 
-  val barcodesFile = "/home/strozzif/GBS/Barcode-GBS.txt"
-  val barcodesSamples = processBarcodes(barcodesFile)
-  val barcodes = barcodesSamples.keys.toSet
-  val cutSite = "TGCAG"
-  val file = args(0) 
-  var total = 0
-  var undetermined = 0
-  
-  val system = ActorSystem("GBS") 
-  val writers = openWriters(barcodesSamples) 
+val system = ActorSystem("GBS",ConfigFactory.load(customConf))
+val writers = openWriters(barcodesSamples) 
 
-  try {
-    val (t,u) = processFastQ(file,cutSite,barcodes,writers)
-    total += t
-    undetermined += u
-  }
-  finally {
-    closeWriters(writers)
-    println("Total processed sequences: "+total.toString)
-    println("Undetermined sequences: "+undetermined.toString+" ("+(undetermined/total.toFloat * 100).toString+" %)")
-    system.shutdown()
-  }
+try {
+  val (t,u) = processFastQ(file,cutSite,barcodes,writers)
+  total += t
+  undetermined += u
+}
+finally {
+  closeWriters(writers)
+  println("Total processed sequences: "+total.toString)
+  println("Undetermined sequences: "+undetermined.toString+" ("+(undetermined/total.toFloat * 100).toString+" %)")
+  system.shutdown()
+}
 
   def openWriters(barcodes: Map[String,String]) : Map[String,ActorRef] = {
     var writers = Map[String,ActorRef]()
