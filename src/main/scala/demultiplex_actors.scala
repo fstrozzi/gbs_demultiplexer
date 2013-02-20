@@ -10,12 +10,11 @@ import org.rogach.scallop._
 case object Close
 
 class Conf(arguments: Seq[String]) extends ScallopConf(arguments) {
-
-  val file = opt[String](name="file",short='f',descr="File with FastQ sequences",required=true)
+  val version = "GBS Demultiplex 1.0 Copyright(c) 2013 Francesco Strozzi"
+  val input = opt[String](name="input",short='i',descr="File or directory with FastQ sequences (gzipped)",required=true)
   val barcodes = opt[String](name="barcodes",short='b',descr="File with barcodes and sample IDs (tab separated)",required=true)
   val cutSite = opt[String](name="cutsite",short='c',descr="Enzyme cut-site reminder",required=true)
-  val threads = opt[Int](name="threads",short='t',descr="Number of threads to use")
-
+  val threads = opt[Int](name="threads",short='t',default=Some(1),descr="Number of threads to use")
 }
 
 object Demultiplex extends App {
@@ -26,13 +25,12 @@ object Demultiplex extends App {
 
 
   def startDemultiplex(opts: Conf) {
-
     val barcodesFile: String = opts.barcodes()
     val barcodesSamples = processBarcodes(barcodesFile)
     val barcodes = barcodesSamples.keys.toSet
     val cutSite: String = opts.cutSite()
-    val file: String = opts.file()
     val threads: Int = opts.threads()
+    val input: String = opts.input()
     var total = 0
     var undetermined = 0
 
@@ -46,9 +44,20 @@ object Demultiplex extends App {
     val writers = openWriters(barcodesSamples,system) 
 
     try {
-      val (t,u) = processFastQ(file,cutSite,barcodes,writers)
-      total += t
-      undetermined += u
+      if (new File(input).isDirectory()) {
+        for(file <- new File(input).listFiles.filter(_.getName.endsWith(".gz"))) {
+          val fileName = file.getPath
+          println("Processing "+fileName)
+          val (t,u) = processFastQ(fileName,cutSite,barcodes,writers)
+          total += t
+          undetermined += u
+        }
+      }
+      else {
+        val (t,u) = processFastQ(input,cutSite,barcodes,writers)
+        total += t 
+        undetermined += u
+      }
     }
     finally {
       closeWriters(writers)
@@ -62,6 +71,7 @@ object Demultiplex extends App {
       barcodes.foreach {elem =>
         val w = system.actorOf(Props(new Writer))
         w ! elem._2+".fastq.gz"
+
         writers += elem._1 -> w 
       }
       writers
