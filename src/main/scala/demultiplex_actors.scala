@@ -13,7 +13,7 @@ class Conf(arguments: Seq[String]) extends ScallopConf(arguments) {
   val version = "GBS Demultiplex 1.0 Copyright(c) 2013 Francesco Strozzi"
   val input = opt[String](name="input",short='i',descr="File or directory with FastQ sequences (gzipped)",required=true)
   val barcodes = opt[String](name="barcodes",short='b',descr="File with barcodes and sample IDs (tab separated)",required=true)
-  val cutSite = opt[String](name="cutsite",short='c',descr="Enzyme cut-site reminder",required=true)
+  val cutSite = opt[List[String]](name="cutsite",short='c',descr="Enzyme cut-site reminder",required=true)
   val threads = opt[Int](name="threads",short='t',default=Some(1),descr="Number of threads to use")
 }
 
@@ -28,7 +28,7 @@ object Demultiplex extends App {
     val barcodesFile: String = opts.barcodes()
     val barcodesSamples = processBarcodes(barcodesFile)
     val barcodes = barcodesSamples.keys.toSet
-    val cutSite: String = opts.cutSite()
+    val cutSite: List[String] = opts.cutSite()
     val threads: Int = opts.threads()
     val input: String = opts.input()
     var total = 0
@@ -94,7 +94,7 @@ object Demultiplex extends App {
       }
     }
 
-    def processFastQ(file: String, cutSite: String, barcodes: Set[String], writers: Map[String,ActorRef]) = { 
+    def processFastQ(file: String, cutSite: List[String], barcodes: Set[String], writers: Map[String,ActorRef]) = { 
       var total = 0
       var undetermined = 0
       val fastq = new BufferedSource(new GZIPInputStream(new BufferedInputStream(new FileInputStream(file),1000000)),1000000)
@@ -111,14 +111,14 @@ object Demultiplex extends App {
       (total,undetermined)
     }
 
-    def processSeq(seq: Seq[String], cutSite: String, barcodes: Set[String]) : Array[String] = {
-      val trimmed = seq(1).split(cutSite,2)
-      if (barcodes.contains(trimmed(0))) {
-        Array(cutSite + trimmed(1),trimmed(0)) 
+    def processSeq(seq: Seq[String], cutSite: List[String], barcodes: Set[String]) : Array[String] = {
+      cutSite.foreach {site => 
+        val trimmed = seq(1).split(site,2)
+        if (barcodes.contains(trimmed(0))) {
+          return Array(site + trimmed(1),trimmed(0)) 
+        }
       }
-      else {
-        Array(cutSite) 
-      }
+        return Array("notFound") 
     }
 
     class Writer extends Actor {
