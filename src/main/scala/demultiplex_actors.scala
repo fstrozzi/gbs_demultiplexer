@@ -129,19 +129,21 @@ object Demultiplex extends App {
 
     class Writer extends Actor {
       private var stream : BufferedOutputStream = _
+      private var file : String = _
 
       def write(data: Array[Byte]) : Unit = {
         stream.write(data) 
       }
 
       def close : Unit  = {
-        stream.flush()
-        stream.close()
-        sender ! "Closed"
+        this.stream.flush()
+        this.stream.close()
+        sender ! "File "+this.file+" closed"
       }
 
       def open(fileName: String) : Unit = {
-        stream = new BufferedOutputStream(new GZIPOutputStream(new FileOutputStream(fileName),100000)) 
+        stream = new BufferedOutputStream(new GZIPOutputStream(new FileOutputStream(fileName),100000))
+        file = fileName
       }
 
       def receive = {
